@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jobflavor — Decode Any Job Posting</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0D0D0F;
+      --surface: #161618;
+      --surface2: #1E1E21;
+      --border: #2A2A2E;
+      --text: #EAEAEC;
+      --muted: #7A7A82;
+      --accent: #7C3AED;
+      --accent-glow: rgba(124, 58, 237, 0.25);
+      --green: #10B981;
+      --green-bg: rgba(16, 185, 129, 0.1);
+      --amber: #F59E0B;
+      --amber-bg: rgba(245, 158, 11, 0.1);
+      --red: #EF4444;
+      --red-bg: rgba(239, 68, 68, 0.1);
+      --blue: #3B82F6;
+      --blue-bg: rgba(59, 130, 246, 0.1);
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    .container { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+    /* Header */
+    header { text-align: center; margin-bottom: 2.5rem; }
+    .badge {
+      display: inline-block;
+      background: var(--accent-glow);
+      border: 1px solid rgba(124,58,237,0.3);
+      color: #A78BFA;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 999px;
+      margin-bottom: 1rem;
+    }
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #fff 0%, #A78BFA 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle { color: var(--muted); font-size: 0.95rem; }
+
+    /* Results */
+    .input-section { margin-bottom: 1.5rem; }
+    .input-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    .input-label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .example-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.72rem;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .example-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .job-textarea {
+      width: 100%;
+      min-height: 220px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 0.9rem;
+      line-height: 1.7;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .job-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .job-textarea::placeholder { color: var(--muted); }
+
+    /* Decode Button */
+    .decode-btn {
+      width: 100%;
+      padding: 14px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 1.5rem;
+    }
+    .decode-btn:hover:not(:disabled) {
+      background: #6D28D9;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 25px var(--accent-glow);
+    }
+    .decode-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    .decode-btn.loading .spinner { display: block; }
+    .decode-btn.loading .btn-text { display: none; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Results */
+    .results { display: none; gap: 1rem; flex-direction: column; }
+
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .result-card-header {
+      padding: 0.85rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .result-card-header.icon-translate { background: var(--blue-bg); color: var(--blue); border-color: rgba(59,130,246,0.2); }
+    .result-card-header.icon-redflags { background: var(--red-bg); color: var(--red); border-color: rgba(239,68,68,0.2); }
+    .result-card-header.icon-skills { background: var(--green-bg); color: var(--green); border-color: rgba(16,185,129,0.2); }
+    .result-card-header.icon-salary { background: var(--amber-bg); color: var(--amber); border-color: rgba(245,158,11,0.2); }
+
+    .result-card-body { padding: 1.25rem; }
+
+    /* Summary card */
+    .summary-card {
+      background: linear-gradient(135deg, var(--surface) 0%, var(--surface2) 100%);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .summary-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+    }
+    .summary-meta {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+    .verdict {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 999px;
+    }
+    .verdict.apply { background: var(--green-bg); color: var(--green); }
+    .verdict.maybe { background: var(--amber-bg); color: var(--amber); }
+    .verdict.skip { background: var(--red-bg); color: var(--red); }
+
+    /* Skills split */
+    .skills-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 600px) { .skills-grid { grid-template-columns: 1fr; } }
+    .skill-col-header {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .skill-col-header.must { color: var(--red); }
+    .skill-col-header.nice { color: var(--green); }
+    .skill-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.78rem;
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin: 0 4px 6px 0;
+    }
+    .skill-tag.core::before {
+      content: '●';
+      color: var(--red);
+      font-size: 0.5rem;
+    }
+    .skill-tag.extra::before {
+      content: '○';
+      color: var(--green);
+      font-size: 0.6rem;
+    }
+
+    /* Red flags list */
+    .flag-item {
+      display: flex;
+      gap: 10px;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.875rem;
+    }
+    .flag-item:last-child { border-bottom: none; }
+    .flag-icon { color: var(--red); font-size: 1rem; flex-shrink: 0; width: 20px; }
+    .flag-text { line-height: 1.5; }
+    .flag-text strong { color: var(--red); }
+    .no-flags {
+      text-align: center;
+      padding: 2rem;
+      color: var(--green);
+      font-size: 0.875rem;
+    }
+    .no-flags::before { content: '✓ '; font-size: 1.2rem; }
+
+    /* Error */
+    .error-msg {
+      background: var(--red-bg);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 10px;
+      padding: 1rem;
+      color: var(--red);
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.75rem;
+      margin-top: 2.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    /* Loading skeleton */
+    .skeleton { animation: shimmer 1.5s infinite; }
+    @keyframes shimmer {
+      0% { opacity: 0.4; }
+      50% { opacity: 0.7; }
+      100% { opacity: 0.4; }
+    }
+    .skeleton-text {
+      background: var(--border);
+      border-radius: 4px;
+      height: 14px;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="badge">AI-Powered</div>
+    <h1>Jobflavor</h1>
+    <p class="subtitle">Paste any job listing — get the real meaning behind it</p>
+  </header>
+
+  <!-- Input -->
+  <div class="input-section">
+    <div class="input-header">
+      <span class="input-label">Job Description</span>
+      <button class="example-btn" id="loadExampleBtn">Load Example</button>
+    </div>
+    <textarea
+      class="job-textarea"
+      id="jobText"
+      placeholder="Paste the full job description here...
+
+e.g.
+We are looking for a Rockstar Full-Stack Engineer with 5+ years experience in React, Node.js, Python, AWS, Docker, Kubernetes, and machine learning. You must be comfortable working in a fast-paced startup environment, managing your own time, and available on weekends..."
+"></textarea>
+  </div>
+
+  <!-- Decode Button -->
+  <button class="decode-btn" id="decodeBtn" disabled>
+    <span class="btn-text">🔍 Decode Job Description</span>
+    <span class="spinner"></span>
+  </button>
+
+  <!-- Results -->
+  <div class="results" id="results">
+
+    <!-- Summary verdict -->
+    <div class="summary-card" id="summaryCard">
+      <div class="skeleton">
+        <div class="skeleton-text" style="width:60%; height:18px;"></div>
+        <div class="skeleton-text" style="width:80%;"></div>
+        <div class="skeleton-text" style="width:40%;"></div>
+      </div>
+    </div>
+
+    <!-- 4 result cards -->
+    <div class="result-card" id="cardTranslate">
+      <div class="result-card-header icon-translate">📋 What This Role Really Means</div>
+      <div class="result-card-body" id="translateBody">
+        <div class="skeleton">
+          <div class="skeleton-text" style="width:95%;"></div>
+          <div class="skeleton-text" style="width:88%;"></div>
+          <div class="skeleton-text" style="width:70%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-card" id="cardRedFlags">
+      <div class="result-card-header icon-redflags">🚩 Red Flags Spotted</div>
+      <div class="result-card-body" id="redFlagsBody">
+        <div class="skeleton">
+          <div class="skeleton-text" style="width:90%;"></div>
+          <div class="skeleton-text" style="width:75%;"></div>
+          <div class="skeleton-text" style="width:60%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-card" id="cardSkills">
+      <div class="result-card-header icon-skills">🎯 Must-Have vs Nice-to-Have</div>
+      <div class="result-card-body">
+        <div class="skills-grid">
+          <div>
+            <div class="skill-col-header must">Must Have</div>
+            <div id="mustHaveSkills"></div>
+          </div>
+          <div>
+            <div class="skill-col-header nice">Nice to Have</div>
+            <div id="niceToHaveSkills"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-card" id="cardSalary">
+      <div class="result-card-header icon-salary">💰 Salary Range Estimate</div>
+      <div class="result-card-body" id="salaryBody">
+        <div class="skeleton">
+          <div class="skeleton-text" style="width:50%; height:28px;"></div>
+          <div class="skeleton-text" style="width:75%;"></div>
+          <div class="skeleton-text" style="width:65%;"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    Your API key is stored only in this browser — never sent to any third party.
+  </footer>
+</div>
+
+<script>
+const EXAMPLE_JD = `Senior Full-Stack Engineer
+
+We're a fast-moving startup looking for a Senior Full-Stack Engineer to join our growing team. You'll wear many hats and work across the entire stack.
+
+Requirements:
+- 5+ years of professional software development experience
+- Strong proficiency in React, TypeScript, and Node.js
+- Experience with AWS or GCP cloud services
+- PostgreSQL and NoSQL database experience
+- Docker and CI/CD pipeline knowledge
+- Experience with Agile/Scrum methodology
+- Bachelor's degree in Computer Science or equivalent
+
+Nice to have:
+- React Native or mobile development experience
+- Machine learning or AI integration experience
+- Startup experience
+
+We offer:
+- Competitive salary ($120,000 - $160,000/year)
+- Health, dental, and vision insurance
+- Unlimited PTO
+- Stock options
+- Hybrid work (2 days in-office)
+- $2,000 annual learning & development budget
+- Weekly team lunches
+
+We're an equal opportunity employer. Must be authorized to work in the US.`;
+
+const SYSTEM_PROMPT = '';
+
+async function callDecode(jobText) {
+  const response = await fetch('/decode', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ job_text: jobText })
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error || `Error ${response.status}`);
+  }
+
+  return response.json();
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function clearError() {
+  document.getElementById('errorMsg').style.display = 'none';
+}
+
+function renderResults(data) {
+  // Summary
+  const summaryCard = document.getElementById('summaryCard');
+  summaryCard.innerHTML = `
+    <div class="summary-title">${data.summary}</div>
+    <div class="verdict ${data.verdict}">${data.verdict.toUpperCase()} — ${data.verdict_reason}</div>
+  `;
+
+  // Translate
+  document.getElementById('translateBody').innerHTML =
+    `<p style="line-height:1.8; font-size:0.9rem;">${data.real_role_meaning.replace(/\n/g, '<br>')}</p>`;
+
+  // Red flags
+  const flagsBody = document.getElementById('redFlagsBody');
+  if (!data.red_flags || data.red_flags.length === 0) {
+    flagsBody.innerHTML = '<div class="no-flags">No major red flags detected — looks like a reasonable listing</div>';
+  } else {
+    flagsBody.innerHTML = data.red_flags.map(f => `
+      <div class="flag-item">
+        <span class="flag-icon">⚠️</span>
+        <div class="flag-text"><strong>${f.flag}</strong> — ${f.explain}</div>
+      </div>
+    `).join('');
+  }
+
+  // Skills
+  document.getElementById('mustHaveSkills').innerHTML =
+    (data.must_have_skills || []).map(s => `<span class="skill-tag core">${s}</span>`).join('');
+  document.getElementById('niceToHaveSkills').innerHTML =
+    (data.nice_to_have_skills || []).map(s => `<span class="skill-tag extra">${s}</span>`).join('');
+
+  // Salary
+  const s = data.salary_estimate;
+  const fmt = n => n >= 1000 ? '$' + (n/1000).toFixed(0) + 'k' : '$' + n;
+  document.getElementById('salaryBody').innerHTML = `
+    <div style="font-size:1.8rem; font-weight:800; color:var(--amber); margin-bottom:0.5rem;">
+      ${fmt(s.low)} — ${fmt(s.high)}
+    </div>
+    <div style="font-size:0.78rem; color:var(--muted); margin-bottom:0.75rem;">${s.currency} per year</div>
+    <div style="font-size:0.82rem; color:var(--text); line-height:1.6;">${s.basis}</div>
+  `;
+
+  document.getElementById('results').style.display = 'flex';
+  window.scrollTo({ top: document.getElementById('results').offsetTop - 20, behavior: 'smooth' });
+}
+
+// API key handling
+const KEY_STORAGE = 'jd_decoder_api_key';
+const savedKey = localStorage.getItem(KEY_STORAGE);
+if (savedKey) {
+  document.getElementById('apiKeyInput').value = savedKey;
+  document.getElementById('keySaved').style.display = 'flex';
+  document.getElementById('decodeBtn').disabled = false;
+}
+
+document.getElementById('apiKeyInput').addEventListener('input', () => {
+  const hasKey = document.getElementById('apiKeyInput').value.trim().length > 10;
+  document.getElementById('decodeBtn').disabled = !hasKey || !document.getElementById('jobText').value.trim();
+  document.getElementById('keySaved').style.display = 'none';
+});
+
+document.getElementById('saveKeyBtn').addEventListener('click', () => {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key) return;
+  localStorage.setItem(KEY_STORAGE, key);
+  document.getElementById('keySaved').style.display = 'flex';
+  document.getElementById('decodeBtn').disabled = !document.getElementById('jobText').value.trim();
+});
+
+document.getElementById('jobText').addEventListener('input', () => {
+  const hasText = document.getElementById('jobText').value.trim().length > 20;
+  document.getElementById('decodeBtn').disabled = !hasText;
+});
+
+document.getElementById('loadExampleBtn').addEventListener('click', () => {
+  document.getElementById('jobText').value = EXAMPLE_JD;
+  document.getElementById('decodeBtn').disabled = false;
+});
+
+document.getElementById('decodeBtn').addEventListener('click', async () => {
+  const jobText = document.getElementById('jobText').value.trim();
+  if (!jobText) return;
+
+  const btn = document.getElementById('decodeBtn');
+  btn.classList.add('loading');
+  btn.disabled = true;
+  clearError();
+
+  // Show skeleton results
+  document.getElementById('results').style.display = 'flex';
+  document.getElementById('summaryCard').innerHTML = '<div class="skeleton"><div class="skeleton-text" style="width:60%; height:18px;"></div><div class="skeleton-text" style="width:80%;"></div></div>';
+
+  try {
+    const data = await callDecode(jobText);
+    renderResults(data);
+  } catch (e) {
+    showError(e.message || 'Something went wrong. Please try again.');
+    document.getElementById('results').style.display = 'none';
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
